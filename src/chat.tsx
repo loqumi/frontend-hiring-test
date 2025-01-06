@@ -125,12 +125,6 @@ export const Chat: React.FC = () => {
           type="text"
           value={textMessage}
           onChange={(e) => setTextMessage(e.target.value)}
-          onKeyDown={(e) => {
-              if (e.key === "Enter" && !isSending) {
-                  if (textMessage) {
-                      handleSendMessage(textMessage);
-                  }
-          }}}
           className={css.textInput}
           placeholder="Message text"
         />
