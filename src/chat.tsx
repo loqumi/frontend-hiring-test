@@ -7,10 +7,11 @@ import {
     type Message, MessageEdge,
 } from "../__generated__/resolvers-types";
 import css from "./chat.module.css";
-import {useQuery} from "@apollo/client";
+import {useMutation, useQuery} from "@apollo/client";
 import {
     GET_MESSAGES,
     MESSAGE_SUBSCRIPTION,
+    SEND_MESSAGE
 } from "./graphql/queries";
 
 const Item: React.FC<Message> = ({ text, sender }) => {
@@ -38,6 +39,7 @@ interface MessageSubscriptionData {
 
 export const Chat: React.FC = () => {
     const [messages, setMessages] = useState<Message[]>([]);
+    const [textMessage, setTextMessage] = useState("");
 
     const { subscribeToMore } = useQuery<{ messages: { edges: MessageEdge[] } }>(
         GET_MESSAGES,
@@ -70,6 +72,32 @@ export const Chat: React.FC = () => {
         return () => unsubscribe();
     }, [subscribeToMore, messages]);
 
+    const [sendMessage] = useMutation(SEND_MESSAGE);
+
+    const handleSendMessage = async (text: string) => {
+        const tempMessage: Message = {
+            id: `${messages.length}`,
+            text,
+            status: MessageStatus.Sending,
+            updatedAt: new Date().toISOString(),
+            sender: MessageSender.Admin,
+            __typename: "Message",
+        };
+
+        setMessages((prev) => [...prev, tempMessage]);
+
+        try {
+            await sendMessage({
+                variables: { text },
+                optimisticResponse: {
+                    sendMessage: tempMessage,
+                },
+            });
+        } catch (error) {
+            console.error("Error sending message:", error);
+        }
+    };
+
   return (
     <div className={css.root}>
       <div className={css.container}>
@@ -78,10 +106,12 @@ export const Chat: React.FC = () => {
       <div className={css.footer}>
         <input
           type="text"
+          value={textMessage}
+          onChange={(e) => {setTextMessage(e.target.value)}}
           className={css.textInput}
           placeholder="Message text"
         />
-        <button>Send</button>
+        <button onClick={() => handleSendMessage(textMessage)}>Send</button>
       </div>
     </div>
   );
