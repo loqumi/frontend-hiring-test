@@ -58,6 +58,14 @@ button {
 button:hover {
   background-color: #0654c6;
 }
+button:disabled {
+  background: #8a92a0;
+  color: #000;
+}
+button:disabled:hover {
+  outline: unset;
+  cursor: not-allowed;
+}
 button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
