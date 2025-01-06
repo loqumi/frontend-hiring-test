@@ -108,7 +108,12 @@ export const Chat: React.FC = () => {
   return (
     <div className={css.root}>
       <div className={css.container}>
-        <Virtuoso className={css.list} data={messages} itemContent={getItem} />
+        <Virtuoso
+            className={css.list}
+            data={messages}
+            itemContent={getItem}
+            initialTopMostItemIndex={messages.length - 1}
+        />
       </div>
       <div className={css.footer}>
         <input
