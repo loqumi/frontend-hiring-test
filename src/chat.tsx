@@ -32,6 +32,10 @@ const getItem: ItemContent<Message, unknown> = (_, data) => {
   return <Item {...data} />;
 };
 
+interface MessageSubscriptionData {
+    messageAdded: Message;
+}
+
 export const Chat: React.FC = () => {
     const [messages, setMessages] = useState<Message[]>([]);
 
@@ -48,7 +52,7 @@ export const Chat: React.FC = () => {
     );
 
     useEffect(() => {
-        const unsubscribe = subscribeToMore({
+        const unsubscribe = subscribeToMore<MessageSubscriptionData>({
             document: MESSAGE_SUBSCRIPTION,
             updateQuery: (prev, { subscriptionData }) => {
                 if (!subscriptionData.data) return prev;
