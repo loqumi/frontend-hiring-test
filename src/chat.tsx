@@ -40,6 +40,7 @@ interface MessageSubscriptionData {
 export const Chat: React.FC = () => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [textMessage, setTextMessage] = useState("");
+    const [isSending, setIsSending] = useState(false);
 
     const { subscribeToMore } = useQuery<{ messages: { edges: MessageEdge[] } }>(
         GET_MESSAGES,
@@ -75,6 +76,10 @@ export const Chat: React.FC = () => {
     const [sendMessage] = useMutation(SEND_MESSAGE);
 
     const handleSendMessage = async (text: string) => {
+        if (isSending) return;
+        setTextMessage("");
+        setIsSending(true);
+
         const tempMessage: Message = {
             id: `${messages.length}`,
             text,
@@ -95,6 +100,8 @@ export const Chat: React.FC = () => {
             });
         } catch (error) {
             console.error("Error sending message:", error);
+        } finally {
+            setIsSending(false);
         }
     };
 
@@ -111,7 +118,12 @@ export const Chat: React.FC = () => {
           className={css.textInput}
           placeholder="Message text"
         />
-        <button onClick={() => handleSendMessage(textMessage)}>Send</button>
+        <button
+            disabled={isSending}
+            onClick={() => handleSendMessage(textMessage)}
+        >
+            {isSending ? "Sending..." : "Send"}
+        </button>
       </div>
     </div>
   );
