@@ -1,20 +1,17 @@
-import React from "react";
+import React, {useEffect, useState} from "react";
 import { ItemContent, Virtuoso } from "react-virtuoso";
 import cn from "clsx";
 import {
-  MessageSender,
-  MessageStatus,
-  type Message,
+    MessageSender,
+    MessageStatus,
+    type Message, MessageEdge,
 } from "../__generated__/resolvers-types";
 import css from "./chat.module.css";
-
-const temp_data: Message[] = Array.from(Array(30), (_, index) => ({
-  id: String(index),
-  text: `Message number ${index}`,
-  status: MessageStatus.Read,
-  updatedAt: new Date().toISOString(),
-  sender: index % 2 ? MessageSender.Admin : MessageSender.Customer,
-}));
+import {useQuery} from "@apollo/client";
+import {
+    GET_MESSAGES,
+    MESSAGE_SUBSCRIPTION,
+} from "./graphql/queries";
 
 const Item: React.FC<Message> = ({ text, sender }) => {
   return (
@@ -36,10 +33,43 @@ const getItem: ItemContent<Message, unknown> = (_, data) => {
 };
 
 export const Chat: React.FC = () => {
+    const [messages, setMessages] = useState<Message[]>([]);
+
+    const { subscribeToMore } = useQuery<{ messages: { edges: MessageEdge[] } }>(
+        GET_MESSAGES,
+        {
+            variables: { first: 30 },
+            notifyOnNetworkStatusChange: true,
+            onCompleted: (fetchedData) => {
+                const newMessages = fetchedData.messages.edges.map((edge) => edge.node);
+                setMessages(newMessages);
+            },
+        }
+    );
+
+    useEffect(() => {
+        const unsubscribe = subscribeToMore({
+            document: MESSAGE_SUBSCRIPTION,
+            updateQuery: (prev, { subscriptionData }) => {
+                if (!subscriptionData.data) return prev;
+
+                const newMessage: Message = subscriptionData.data.messageAdded;
+
+                setMessages((prev) => {
+                    if (prev.find((msg) => msg.id === newMessage.id)) return prev;
+                    return [...prev, newMessage];
+                });
+                return prev;
+            },
+        });
+
+        return () => unsubscribe();
+    }, [subscribeToMore, messages]);
+
   return (
     <div className={css.root}>
       <div className={css.container}>
-        <Virtuoso className={css.list} data={temp_data} itemContent={getItem} />
+        <Virtuoso className={css.list} data={messages} itemContent={getItem} />
       </div>
       <div className={css.footer}>
         <input
