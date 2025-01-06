@@ -63,9 +63,10 @@ export const Chat: React.FC = () => {
                 const newMessage: Message = subscriptionData.data.messageAdded;
 
                 setMessages((prev) => {
-                    if (prev.find((msg) => msg.id === newMessage.id)) return prev;
+                    if (prev.some((msg) => msg.id === newMessage.id)) return prev;
                     return [...prev, newMessage];
                 });
+
                 return prev;
             },
         });
@@ -89,7 +90,11 @@ export const Chat: React.FC = () => {
             __typename: "Message",
         };
 
-        setMessages((prev) => [...prev, tempMessage]);
+        setMessages((prev) => {
+            if (prev.some((msg) => msg.id === tempMessage.id)) return prev;
+            return [...prev, tempMessage];
+        });
+
 
         try {
             await sendMessage({
