@@ -114,13 +114,23 @@ export const Chat: React.FC = () => {
         <input
           type="text"
           value={textMessage}
-          onChange={(e) => {setTextMessage(e.target.value)}}
+          onChange={(e) => setTextMessage(e.target.value)}
+          onKeyDown={(e) => {
+              if (e.key === "Enter" && !isSending) {
+                  if (textMessage) {
+                      handleSendMessage(textMessage);
+                  }
+          }}}
           className={css.textInput}
           placeholder="Message text"
         />
         <button
             disabled={isSending}
-            onClick={() => handleSendMessage(textMessage)}
+            onClick={() => {
+                if (textMessage && !isSending) {
+                    handleSendMessage(textMessage)}
+                }
+            }
         >
             {isSending ? "Sending..." : "Send"}
         </button>
