@@ -37,22 +37,55 @@ interface MessageSubscriptionData {
     messageAdded: Message;
 }
 
+const ensureUniqueMessages = (messages: Message[]): Message[] => {
+    const messageMap = new Map<string, Message>();
+    messages.forEach((msg) => messageMap.set(msg.id, msg));
+    return Array.from(messageMap.values());
+};
+
 export const Chat: React.FC = () => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [textMessage, setTextMessage] = useState("");
     const [isSending, setIsSending] = useState(false);
+    const [hasNextPage, setHasNextPage] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [endCursor, setEndCursor] = useState<string | null>(null);
 
-    const { subscribeToMore } = useQuery<{ messages: { edges: MessageEdge[] } }>(
-        GET_MESSAGES,
-        {
+    const { subscribeToMore, fetchMore } = useQuery<{
+        messages: { edges: MessageEdge[]; pageInfo: { hasNextPage: boolean; endCursor: string } };
+    }>(GET_MESSAGES, {
             variables: { first: 30 },
             notifyOnNetworkStatusChange: true,
             onCompleted: (fetchedData) => {
-                const newMessages = fetchedData.messages.edges.map((edge) => edge.node);
-                setMessages(newMessages);
+                const initialMessages = fetchedData.messages.edges.map((edge) => edge.node);
+                setMessages((prev) => ensureUniqueMessages([...prev, ...initialMessages]));
+                setHasNextPage(fetchedData.messages.pageInfo.hasNextPage);
+                setEndCursor(fetchedData.messages.pageInfo.endCursor);
             },
+    });
+
+    const loadNewerMessages = async () => {
+        if (!hasNextPage || loadingMore) return;
+
+        setLoadingMore(true);
+        try {
+            const { data } = await fetchMore({
+                variables: {
+                    first: 10,
+                    after: endCursor,
+                },
+            });
+
+            const newerMessages = data.messages.edges.map((edge: MessageEdge) => edge.node);
+            setMessages((prev) => ensureUniqueMessages([...prev, ...newerMessages]));
+            setHasNextPage(data.messages.pageInfo.hasNextPage);
+            setEndCursor(data.messages.pageInfo.endCursor);
+        } catch (error) {
+            console.error("Error loading newer messages:", error);
+        } finally {
+            setLoadingMore(false);
         }
-    );
+    };
 
     useEffect(() => {
         const unsubscribe = subscribeToMore<MessageSubscriptionData>({
@@ -60,19 +93,16 @@ export const Chat: React.FC = () => {
             updateQuery: (prev, { subscriptionData }) => {
                 if (!subscriptionData.data) return prev;
 
-                const newMessage: Message = subscriptionData.data.messageAdded;
+                const newMessage = subscriptionData.data.messageAdded;
 
-                setMessages((prev) => {
-                    if (prev.some((msg) => msg.id === newMessage.id)) return prev;
-                    return [...prev, newMessage];
-                });
+                setMessages((prev) => ensureUniqueMessages([...prev, newMessage]));
 
                 return prev;
             },
         });
 
         return () => unsubscribe();
-    }, [subscribeToMore, messages]);
+    }, [subscribeToMore]);
 
     const [sendMessage] = useMutation(SEND_MESSAGE);
 
@@ -82,7 +112,7 @@ export const Chat: React.FC = () => {
         setIsSending(true);
 
         const tempMessage: Message = {
-            id: `${messages.length}`,
+            id: `temp-${Date.now()}`,
             text,
             status: MessageStatus.Sending,
             updatedAt: new Date().toISOString(),
@@ -90,19 +120,20 @@ export const Chat: React.FC = () => {
             __typename: "Message",
         };
 
-        setMessages((prev) => {
-            if (prev.some((msg) => msg.id === tempMessage.id)) return prev;
-            return [...prev, tempMessage];
-        });
-
+        setMessages((prev) => ensureUniqueMessages([...prev, tempMessage]));
 
         try {
-            await sendMessage({
+            const { data } = await sendMessage({
                 variables: { text },
-                optimisticResponse: {
-                    sendMessage: tempMessage,
-                },
             });
+
+            setMessages((prev) =>
+                ensureUniqueMessages(
+                    prev.map((msg) =>
+                        msg.id === tempMessage.id ? data.sendMessage : msg
+                    )
+                )
+            );
         } catch (error) {
             console.error("Error sending message:", error);
         } finally {
@@ -110,35 +141,37 @@ export const Chat: React.FC = () => {
         }
     };
 
-  return (
-    <div className={css.root}>
-      <div className={css.container}>
-        <Virtuoso
-            className={css.list}
-            data={messages}
-            itemContent={getItem}
-            initialTopMostItemIndex={messages.length - 1}
-        />
-      </div>
-      <div className={css.footer}>
-        <input
-          type="text"
-          value={textMessage}
-          onChange={(e) => setTextMessage(e.target.value)}
-          className={css.textInput}
-          placeholder="Message text"
-        />
-        <button
-            disabled={isSending}
-            onClick={() => {
-                if (textMessage && !isSending) {
-                    handleSendMessage(textMessage)}
-                }
-            }
-        >
-            {isSending ? "Sending..." : "Send"}
-        </button>
-      </div>
-    </div>
-  );
+    return (
+        <div className={css.root}>
+            <div className={css.container}>
+                <Virtuoso
+                    className={css.list}
+                    data={messages}
+                    itemContent={getItem}
+                    endReached={loadNewerMessages}
+                    initialTopMostItemIndex={messages.length - 1}
+                />
+                {loadingMore && <div className={css.loading}>Loading more...</div>}
+            </div>
+            <div className={css.footer}>
+                <input
+                    type="text"
+                    value={textMessage}
+                    onChange={(e) => setTextMessage(e.target.value)}
+                    className={css.textInput}
+                    placeholder="Message text"
+                />
+                <button
+                    disabled={isSending}
+                    onClick={() => {
+                        if (textMessage && !isSending) {
+                            handleSendMessage(textMessage);
+                        }
+                    }}
+                >
+                    {isSending ? "Sending..." : "Send"}
+                </button>
+            </div>
+        </div>
+    );
 };
